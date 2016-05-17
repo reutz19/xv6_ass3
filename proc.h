@@ -1,5 +1,8 @@
 // Segments in proc->gdt.
-#define NSEGS     7
+#define NSEGS           7
+#define MAX_TOTAL_PAGES 30
+#define MAX_FILE_PAGES  15
+#define MAX_PSYC_PAGES  15
 
 // Per-CPU state
 struct cpu {
@@ -29,6 +32,12 @@ extern int ncpu;
 // in thread libraries such as Linux pthreads.
 extern struct cpu *cpu asm("%gs:0");       // &cpus[cpunum()]
 extern struct proc *proc asm("%gs:4");     // cpus[cpunum()].proc
+
+struct paggingmd {
+  void* pva;            // page indentifier - by virtual memory
+  //uint offset;      // offset in file
+};
+
 
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
@@ -68,8 +77,9 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   //Swap file. must initiate with create swap file
-  struct file *swapFile;			//page file
-
+  struct file *swapFile;	     //page file
+  struct paggingmd pgmd[MAX_FILE_PAGES]; //pagging meta-data
+  uint psyc_page_num;            // handle number of pysical pages
 };
 
 // Process memory is laid out contiguously, low addresses first:

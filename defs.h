@@ -121,6 +121,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+int 			handlepgfault(void* fadd);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

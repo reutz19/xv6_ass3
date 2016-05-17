@@ -464,3 +464,52 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+
+int
+exist_in_pagemd(void* va)
+{
+  int i;
+  for (i = 0; i < MAX_FILE_PAGES; i++){
+    if (proc->pgmd[i].pva == va)
+      return i;
+  }
+  return -1;
+}
+
+int 
+get_free_pgidx()
+{
+  int i;
+  for (i = 0; i < MAX_FILE_PAGES; i++){
+    if (proc->pgmd[i].pva == (void*)-1)
+      return i;
+  }
+  return -1;
+}
+
+
+int
+handlepgfault(void* fadd)
+{
+  int pgidx;
+  if ((pgidx = exist_in_pagemd(fadd)) == -1 || proc->swapFile == 0)  {
+    panic("page not in storage");
+    return -1;
+  }
+
+  uint pgoff = ((uint)pgidx) * PGSIZE;
+
+  if (proc->psyc_page_num == MAX_PSYC_PAGES){ //swap out a page
+    //TODO
+  }
+
+  char buf[PGSIZE];
+  if (readFromSwapFile(proc, buf, pgoff, PGSIZE) == -1)
+    panic("read from swap file");
+
+  pte_t* pgadd = walkpgdir(proc->pgdir, fadd, 1); //return pointer to page on pysc memory
+  // copy page content from swap file to pysical memory
+  memmove(pgadd, buf, PGSIZE);
+  proc->pgmd[pgidx].pva = (void*)-1;
+}
