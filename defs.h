@@ -121,7 +121,6 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-int 			handlepgfault(void* fadd);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -186,6 +185,9 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+int 			handlepgfault(void* fadd);
+void 			free_proc_pgmd(struct proc* p);
+void 			copy_proc_pgmd(struct proc* dstp, struct proc* srcp);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

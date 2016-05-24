@@ -78,8 +78,8 @@ struct proc {
 
   //Swap file. must initiate with create swap file
   struct file *swapFile;	     //page file
-  struct paggingmd pgmd[MAX_FILE_PAGES]; //pagging meta-data
-  uint psyc_page_num;            // handle number of pysical pages
+  struct paggingmd swap_pgmd[MAX_FILE_PAGES]; //swap file pages meta-data
+  struct paggingmd pysc_pgmd[MAX_PSYC_PAGES]; //pages in pysical memory
 };
 
 // Process memory is laid out contiguously, low addresses first:

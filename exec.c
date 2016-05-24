@@ -92,6 +92,10 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
+  //reset all proc pages meta data: delete old swap file and create a new one, clear all pages
+  free_proc_pgmd(proc);
+  createSwapFile(proc);
+  
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;
