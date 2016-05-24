@@ -185,8 +185,8 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
-int 			handlepgfault(void* fadd);
-void 			free_proc_pgmd(struct proc* p);
+int 			handle_pgfault(void* fadd);
+void 			free_proc_pgmd(struct proc* p, uint remove);
 void 			copy_proc_pgmd(struct proc* dstp, struct proc* srcp);
 
 // number of elements in fixed-size array

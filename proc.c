@@ -146,7 +146,7 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
   //copy all pages meta data from proc to his son p
-  //copy_proc_pgmd(np, proc);
+  copy_proc_pgmd(np, proc);
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -221,6 +221,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
 
+  struct proc tmp;
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for zombie children.
@@ -235,13 +236,15 @@ wait(void)
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
-        //free_proc_pgmd(p);  //clear all pages meta data
+        tmp = *p;              //backup proc
+        free_proc_pgmd(p, 0);  //clear all pages meta data
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         release(&ptable.lock);
+        free_proc_pgmd(&tmp,1); //remove swap file after releas lock
         return pid;
       }
     }

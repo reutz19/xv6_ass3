@@ -1,0 +1,2 @@
+1. check bug in copy_swap_content in vm.c 
+2. think where to manage all handling with pysc_pgdm and swap_pgdm - romove add exept page fault.

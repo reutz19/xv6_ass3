@@ -686,6 +686,11 @@ removeSwapFile(struct proc* p)
 	char name[DIRSIZ];
 	uint off;
 
+	if(0 == p->swapFile)
+	{
+		return -1;
+	}
+	fileclose(p->swapFile);
 
 	begin_op();
 	if((dp = nameiparent(path, name)) == 0)
@@ -763,7 +768,7 @@ createSwapFile(struct proc* p)
     return 0;
 }
 
-//return as sys_write (-1 whe n error)
+//return as sys_write (-1 when error)
 int
 writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
