@@ -79,7 +79,7 @@ trap(struct trapframe *tf)
     break;
   case T_PGFLT:
     #ifndef SELECTION_NONE
-      handle_pgfault((void*)rcr2());
+      handle_pgfault((void*)PGROUNDUP(rcr2()));
     #endif
     break;
   //PAGEBREAK: 13

@@ -133,7 +133,8 @@ int
 get_free_pgidx_pysc(void)
 {
   int i;
-  for (i = 0; i < MAX_PSYC_PAGES; i++){
+  for (i = 0; i < MAX_PSYC_PAGES; i++)
+  {
     if (proc->pysc_pgmd[i].pva == (void*)-1)
       return i;
   }
@@ -179,15 +180,15 @@ paged_out(int swap_pgidx)
 {
   cprintf("in paged_out\n");
   char buf[PGSIZE];
-  //int pysc_pgidx = 3; //TODO: change it to next line in comment:
-  int pysc_pgidx = idx_page_out();
+  int pysc_pgidx = 4; //TODO: change it to next line in comment:
+  //int pysc_pgidx = idx_page_out();
 
   pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
   cprintf("the outpg_va is: %x\n", outpg_va);
   memset(buf, 0, PGSIZE); 
   memmove(buf, outpg_va, PGSIZE);
   
-  pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 1); //return pointer to page on pysc memory
+  pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 0); //return pointer to page on pysc memory
   cprintf("the pte is: %x\n", pte);
   *pte = *pte & ~PTE_P;     // set not present
   *pte = *pte | PTE_PG;     // set swapped out
@@ -636,11 +637,12 @@ handle_pgfault(void* fadd)
 
   uint pgoff = ((uint)swap_pgidx) * PGSIZE;
   char buf[PGSIZE];
+  // kalloc to buf
   if (readFromSwapFile(proc, buf, pgoff, PGSIZE) == -1)
     panic("handle_pgfault: read from swap file");
 
   //return pointer to page on pysc memory
-  pte_t* pte = walkpgdir(proc->pgdir, fadd, 1); 
+  pte_t* pte = walkpgdir(proc->pgdir, fadd, 0); 
   *pte = *pte & ~PTE_PG;  //not swaped out
 
   if ((pysc_pgidx = get_free_pgidx_pysc()) == -1){ 
