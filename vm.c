@@ -90,9 +90,11 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 }
 
 
-
-
 // ----------------   manage pages  ----------------------
+
+#ifndef SELECTION_NONE
+
+int idx_page_out();
 
 int 
 get_pgidx_in_pysc(void* va)
@@ -175,19 +177,23 @@ copy_swap_pgmd(struct proc *dstp, struct proc *srcp)
 int 
 paged_out(int swap_pgidx)
 {
-  cprintf("in paged_out");
+  cprintf("in paged_out\n");
   char buf[PGSIZE];
-  int pysc_pgidx = 3; //TODO: change it later
+  //int pysc_pgidx = 3; //TODO: change it to next line in comment:
+  int pysc_pgidx = idx_page_out();
 
   pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
+  cprintf("the outpg_va is: %x\n", outpg_va);
   memset(buf, 0, PGSIZE); 
   memmove(buf, outpg_va, PGSIZE);
   
   pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 1); //return pointer to page on pysc memory
-
+  cprintf("the pte is: %x\n", pte);
   *pte = *pte & ~PTE_P;     // set not present
   *pte = *pte | PTE_PG;     // set swapped out
+  cprintf("before kfree, in paged_out func\n");
   kfree((char*)outpg_va);   // free pysical memory
+  cprintf("after kfree, in paged_out func\n");
   lcr3(v2p(proc->pgdir));   // update pgdir after page out
   proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
 
@@ -206,6 +212,77 @@ paged_out(int swap_pgidx)
 
   return pysc_pgidx;
 }
+
+#endif
+
+// -----------   manage page replacemaent schemes --------
+
+int
+idx_page_out()
+{
+  int ret_index, next_index;
+  pte_t *va_tmp;
+
+  #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
+    // find the index of of the current "oldest" page
+  ret_index = get_pgidx_in_pysc(proc->pnt_page);
+  next_index = ret_index;
+  // find the next page in the "queue"
+  for(;;)
+  {
+    int i=0; 
+    cprintf("process->pid: %d\n", proc->pid);
+    cprintf("process->pnt_page: %x     index:%d\n", proc->pnt_page, ret_index);
+    while(i<15){
+      cprintf("pysc_pgmd[%d] = %x\n",i, proc->pysc_pgmd[i].pva);
+      i++;
+    }
+
+    next_index = (next_index + 1) % MAX_PSYC_PAGES;
+    va_tmp = proc->pysc_pgmd[next_index].pva;
+    if(va_tmp != (void*)-1)
+    {
+      #ifdef SELECTION_SCFIFO
+        if(*va_tmp & PTE_A){
+          *va_tmp = *va_tmp & ~PTE_A; // set off Reference bit and continue to next page
+        }
+        else{ // Reference bit is already off, so this is the new "oldest" page
+          proc->pnt_page = va_tmp;
+          break;    
+        }      
+      #endif
+
+      // only FIFO scheme:
+      proc->pnt_page = va_tmp;
+      break;
+    }
+  }
+
+  #endif 
+
+  #if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 
+
+
+
+
+  
+
+  #endif
+
+  return ret_index;
+}
+
+
+/*   #if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 
+// update counter for each page if it's been referenced
+  void
+  update_refer_pages()
+  {
+    //TODO
+  }
+ #endif
+ */
+
 
 // There is one page table per process, plus one that's used when
 // a CPU is not running any process (kpgdir). The kernel uses the
@@ -540,7 +617,7 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
-
+#ifndef SELECTION_NONE
 
 int
 handle_pgfault(void* fadd)
@@ -570,8 +647,9 @@ handle_pgfault(void* fadd)
     // pysc memory is full need to swap out a page
     pysc_pgidx = paged_out(swap_pgidx); //after that --> pysc_pgidx is free for future allocation
   }
-  else 
+  else {
     proc->swap_pgmd[swap_pgidx].pva = (void*)-1;
+  } 
 
   char* mem;
   if ((mem = kalloc()) == 0) {
@@ -640,3 +718,5 @@ copy_proc_pgmd(struct proc* dstp, struct proc* srcp)
   copy_pysc_pgmd(dstp, srcp);
   copy_swap_pgmd(dstp, srcp);
 }
+
+#endif

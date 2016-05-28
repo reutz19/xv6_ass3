@@ -76,10 +76,12 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  //Swap file. must initiate with create swap file
-  struct file *swapFile;	     //page file
+  // new attributes:
+  struct file *swapFile;	     // Swap file. must initiate with create swap file
   struct paggingmd swap_pgmd[MAX_FILE_PAGES]; //swap file pages meta-data
-  struct paggingmd pysc_pgmd[MAX_PSYC_PAGES]; //pages in pysical memory
+  struct paggingmd pysc_pgmd[MAX_PSYC_PAGES]; //pages in physical memory
+  void *pnt_page;             // pointer to the "oldest" page in physical memory
+  
 };
 
 // Process memory is laid out contiguously, low addresses first:

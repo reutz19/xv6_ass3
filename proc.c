@@ -154,9 +154,14 @@ fork(void)
     }
   }
   else {
-    // dup swap file from pather to son and copy pages metadata
+    // dup swap file from father to son and copy pages metadata
     copy_proc_pgmd(np, proc);
   }
+  // FIFO scheme - initiate "queue" to the first page in the metadata
+  #ifdef SELCTION_FIFO
+    np->pnt_page = np->pysc_pgmd[0].pva;
+  #endif
+
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
