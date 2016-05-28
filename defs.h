@@ -188,6 +188,9 @@ void            clearpteu(pde_t *pgdir, char *uva);
 int 			handle_pgfault(void* fadd);
 void 			free_proc_pgmd(struct proc* p, uint remove);
 void 			copy_proc_pgmd(struct proc* dstp, struct proc* srcp);
+void 			create_proc_pgmd(struct proc* p);
+void 			copy_pysc_pgmd(struct proc *dstp, struct proc *srcp);
+void 			copy_swap_pgmd(struct proc *dstp, struct proc *srcp);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

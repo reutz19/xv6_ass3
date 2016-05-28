@@ -98,7 +98,7 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
+  
   p->state = RUNNABLE;
 }
 
@@ -145,8 +145,18 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-  //copy all pages meta data from proc to his son p
-  copy_proc_pgmd(np, proc);
+
+  // userinit and shell process has no swap file 
+  if (proc->pid <= 2) {
+    if (np->pid > 2) {
+      //create a new swap for sons of user init and shell
+      create_proc_pgmd(np);
+    }
+  }
+  else {
+    // dup swap file from pather to son and copy pages metadata
+    copy_proc_pgmd(np, proc);
+  }
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -188,6 +198,8 @@ exit(void)
     }
   }
 
+  free_proc_pgmd(proc,1); //remove swap file and pages metadata
+
   begin_op();
   iput(proc->cwd);
   end_op();
@@ -221,7 +233,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
 
-  struct proc tmp;
+  //struct proc tmp;
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for zombie children.
@@ -235,16 +247,18 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
+        cprintf("in wait\n");
         freevm(p->pgdir);
-        tmp = *p;              //backup proc
-        free_proc_pgmd(p, 0);  //clear all pages meta data
+        // ***************** check what heppen if we tdelete the file twice *******************
+        //tmp = *p;              //backup proc
+        //free_proc_pgmd(p, 0);  //clear all pages meta data
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         release(&ptable.lock);
-        free_proc_pgmd(&tmp,1); //remove swap file after releas lock
+        //free_proc_pgmd(&tmp,1); //remove swap file after releas lock
         return pid;
       }
     }
