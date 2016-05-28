@@ -90,7 +90,9 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 }
 
 
-// manage pages
+
+
+// ----------------   manage pages  ----------------------
 
 int 
 get_pgidx_in_pysc(void* va)

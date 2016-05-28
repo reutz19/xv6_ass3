@@ -1,2 +1,9 @@
 1. deallocate page fault
 2. check why swap file 1 + 2 is created?
+
+
+
+grow proc
+allocuvm 
+freevm
+
