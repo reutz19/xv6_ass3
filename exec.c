@@ -17,12 +17,10 @@ exec(char *path, char **argv)
   struct inode *ip;
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
+  
+  //backup proc pages metdata
   struct proc old_proc = *proc;
 
-  //backup proc pages metdata
-  //struct proc beckup = proc;
-  //free_proc_pgmd(proc, 0);
-  cprintf("before setupkvm\n");
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();
@@ -42,7 +40,6 @@ exec(char *path, char **argv)
 
   free_proc_pgmd(proc, 0);
 
-  cprintf("in exec0\n");
   // Load program into memory.
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
@@ -61,7 +58,6 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
-  cprintf("in exec1\n");
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -104,17 +100,18 @@ exec(char *path, char **argv)
   //reset all proc pages meta data: delete old swap file and create a new one, clear all pages
   
   switchuvm(proc);
-  cprintf("in exec2\n");
+  
+  /*struct proc new_Proc = *proc;
+  *proc = old_proc;*/
   freevm(oldpgdir);
 
-  free_proc_pgmd(proc, 1);
+  //*proc = new_Proc;
+  removeSwapFile(proc);
   createSwapFile(proc);
   return 0;
 
  bad:
-  //proc->pysc_pgmd = pysc_pgmd_backup;
-  //proc->swap_pgmd = swap_pgmd_backup;
- *proc = old_proc;
+  *proc = old_proc;
   if(pgdir)
     freevm(pgdir);
   if(ip){

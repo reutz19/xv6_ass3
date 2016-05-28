@@ -247,7 +247,6 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        cprintf("in wait\n");
         freevm(p->pgdir);
         // ***************** check what heppen if we tdelete the file twice *******************
         //tmp = *p;              //backup proc

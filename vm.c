@@ -177,7 +177,8 @@ paged_out(int swap_pgidx)
   char buf[PGSIZE];
   int pysc_pgidx = 3; //TODO: change it later
 
-  pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva; 
+  pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
+  memset(buf, 0, PGSIZE); 
   memmove(buf, outpg_va, PGSIZE);
   
   pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 1); //return pointer to page on pysc memory
@@ -349,7 +350,6 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
     if (proc->pid > 2 && (ava_pyscidx = get_free_pgidx_pysc()) == -1){
       ava_pyscidx = paged_out(-1); // page out from pysc memory to swap
-      cprintf("allocauvm: paged_out ava_pyscidx=%d\n", ava_pyscidx);
     }
 
     mem = kalloc();
@@ -358,12 +358,11 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
     }
+
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
-    //cprintf("va is : %x ====> pa is %x\n", (void *)a, v2p(mem));
    
     if (ava_pyscidx >= 0){
-      cprintf("pid %d  av %x idx %d\n", proc->pid, (void*)a, ava_pyscidx);
       proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
     }
   }
@@ -397,41 +396,30 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       char *v = p2v(pa);
       kfree(v);
       
-      if (proc->pid > 2 && proc->pgdir == pgdir) {
+      if (proc->pid > 2 && proc->pgdir == pgdir) 
+      {
         if ((pyscidx = get_pgidx_in_pysc((void*)a)) == -1){
-          int i;
-          cprintf("deallocate pysc: va %x\n", (void*)a);
-          for(i = 0; i < 15; i++){
-            cprintf("deallocate pysc: pid %d idx %d va %x\n", proc->pid, i, proc->pysc_pgmd[i].pva);
-          }
           panic("deallocate pysc: pyscidx not found");
         }
         proc->pysc_pgmd[pyscidx].pva = (void*)-1;
       }
-      else if (proc->pgdir != pgdir){
-        cprintf("deallocate pysc: not proc pgdir\n");
-      }
+
       *pte = 0;
     }
     //not present and swapped out
-    /*else if (((*pte & PTE_P) == 0) && ((*pte & PTE_PG) != 0))
+    else if (((*pte & PTE_P) == 0) && ((*pte & PTE_PG) != 0))
     { 
 
       int swapidx;
       if ((swapidx = get_pgidx_in_swap((void*)a)) == -1){
-        int i;
-        cprintf("deallocate: va %x\n", (void*)a);
-        for(i = 0; i < 15; i++){
-          cprintf("deallocate swap: pid %d idx %d va %x\n", proc->pid, i, proc->swap_pgmd[i].pva);
-        }
         panic("deallocate swap: swapidx not found");
       }
       
-      char buf[PGSIZE];
-      memset(buf, 0, PGSIZE);
-      writeToSwapFile(proc, buf, swapidx*(PGSIZE), PGSIZE);
+      //char buf[PGSIZE];
+      //memset(buf, 0, PGSIZE);
+      //writeToSwapFile(proc, buf, swapidx*(PGSIZE), PGSIZE);
       proc->swap_pgmd[swapidx].pva = (void*)-1;
-    }*/
+    }
   }
   return newsz;
 }
@@ -442,20 +430,18 @@ void
 freevm(pde_t *pgdir)
 {
   uint i;
-  cprintf("FREEUVM\n");
+  
   if(pgdir == 0)
     panic("freevm: no pgdir");
   deallocuvm(pgdir, KERNBASE, 0);
-  cprintf("after Deallocate\n");
+  
   for(i = 0; i < NPDENTRIES; i++){
     if(pgdir[i] & PTE_P){
-      cprintf("remove pgdir[%d]=%p\n", i, pgdir[i]);
-
       char * v = p2v(PTE_ADDR(pgdir[i]));
       kfree(v);
     }
   }
-  cprintf("freevm: after for\n");
+
   kfree((char*)pgdir);
 }
 
@@ -500,7 +486,6 @@ copyuvm(pde_t *pgdir, uint sz)
   return d;
 
 bad:
-  cprintf("in copyuvm\n");
   freevm(d);
   return 0;
 }
@@ -636,8 +621,8 @@ free_proc_pgmd(struct proc* p, uint remove)
 {
   if (remove)
     removeSwapFile(p);
-  else
-    p->swapFile = 0; //importent to handle this case carfully so we won't lose the swap pointer (backup proc befoecalling this function)
+  //else
+  //  p->swapFile = 0; //importent to handle this case carfully so we won't lose the swap pointer (backup proc befoecalling this function)
 
   init_pysc_pgmd(p);
   init_swap_pgmd(p);
