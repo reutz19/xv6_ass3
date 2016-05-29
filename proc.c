@@ -146,7 +146,7 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
 
-  #ifndef SELECTION_NONE 
+  //#ifndef SELECTION_NONE 
   // userinit and shell process has no swap file 
   if (proc->pid <= 2) {
     if (np->pid > 2) {
@@ -161,7 +161,7 @@ fork(void)
     np->oldest_pgidx = proc->oldest_pgidx;
   }
 
-  #endif
+  //#endif
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;

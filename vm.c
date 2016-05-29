@@ -94,8 +94,8 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 
 #ifndef SELECTION_NONE
 
-int idx_page_out_FIFO();
-int idx_page_out_NFU();
+int idx_page_out_FIFO(void);
+int idx_page_out_NFU(void);
 
 int 
 get_pgidx_in_pysc(void* va)
@@ -174,58 +174,13 @@ copy_swap_pgmd(struct proc *dstp, struct proc *srcp)
     dstp->swap_pgmd[i].pva = srcp->swap_pgmd[i].pva;
 }
 
-// select a page from pysc memory and paged it out, if given swap_pgidx >=0 then locate the paged out page in swap_pgidx
-// return the index of the freed pysc index page
-int 
-paged_out(int swap_pgidx)
-{
-  char buf[PGSIZE];
-  int pysc_pgidx = 0; //TODO: change it to next line in comment:
-  	
-  #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
-  	pysc_pgidx = idx_page_out_FIFO();
-  #else 
-  	pysc_pgidx = idx_page_out_NFU();
-  #endif
-
-  pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
-  memset(buf, 0, PGSIZE); 
-  memmove(buf, outpg_va, PGSIZE);
-  
-  pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 1); //return pointer to page on pysc memory
-  *pte = *pte & ~PTE_P;     // set not present
-  *pte = *pte | PTE_PG;     // set swapped out
-  
-  char * v = p2v(PTE_ADDR(*pte));
-  kfree(v);   							// free pysical memory
-  lcr3(v2p(proc->pgdir));   // update pgdir after page out
-  
-  proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
-
-  if (swap_pgidx < 0){
-    // look for a free space on swap file
-    if ((swap_pgidx = get_free_pgidx_swap()) == -1) {
-      panic("paged_out: more then 30 pages for process");
-      return -1;
-    }
-  }
-
-  // write buf data to proc swap file
-  uint pgoff = ((uint)swap_pgidx) * PGSIZE;
-  writeToSwapFile(proc, buf, pgoff, PGSIZE);
-  proc->swap_pgmd[swap_pgidx].pva = outpg_va;
-
-  return pysc_pgidx;
-}
-
-#endif
 
 // -----------   manage page replacemaent schemes --------
 
 #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
 
 int
-idx_page_out_FIFO()
+idx_page_out_FIFO(void)
 {
 	int ret_index = proc->oldest_pgidx;
 	
@@ -270,28 +225,78 @@ idx_page_out_FIFO()
   return ret_index;
 }
 
-#endif 
+//#endif 
+#else
 
-
-#if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 
+//#if defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
 
 int
-idx_page_out_NFU()
+idx_page_out_NFU(void)
 {  
 
-	return 0;
+	return 4;
 }
 
 #endif
 
-
-/*   #if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 
-// update counter for each page if it's been referenced
-  void
-  update_refer_pages()
+void
+  update_refer_pages(void)
   {
     //TODO
   }
+
+// select a page from pysc memory and paged it out, if given swap_pgidx >=0 then locate the paged out page in swap_pgidx
+// return the index of the freed pysc index page
+int 
+paged_out(int swap_pgidx)
+{
+  char buf[PGSIZE];
+  int pysc_pgidx = 0; //TODO: change it to next line in comment:
+  	
+  #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
+  	pysc_pgidx = idx_page_out_FIFO();
+  #else
+
+  //#if defined(SELECTION_DEFAULT) || defined(SELECTION_NFU)
+  	pysc_pgidx = idx_page_out_NFU();
+  #endif
+
+  //pysc_pgidx = 4;//idx_page_out_NFU();
+  pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
+  memset(buf, 0, PGSIZE); 
+  memmove(buf, outpg_va, PGSIZE);
+  
+  pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 1); //return pointer to page on pysc memory
+  *pte = *pte & ~PTE_P;     // set not present
+  *pte = *pte | PTE_PG;     // set swapped out
+  
+  char * v = p2v(PTE_ADDR(*pte));
+  kfree(v);   							// free pysical memory
+  lcr3(v2p(proc->pgdir));   // update pgdir after page out
+  
+  proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
+
+  if (swap_pgidx < 0){
+    // look for a free space on swap file
+    if ((swap_pgidx = get_free_pgidx_swap()) == -1) {
+      panic("paged_out: more then 30 pages for process");
+      return -1;
+    }
+  }
+
+  // write buf data to proc swap file
+  uint pgoff = ((uint)swap_pgidx) * PGSIZE;
+  writeToSwapFile(proc, buf, pgoff, PGSIZE);
+  proc->swap_pgmd[swap_pgidx].pva = outpg_va;
+
+  return pysc_pgidx;
+}
+
+#endif
+
+/*   #if defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
+// update counter for each page if it's been referenced
+
  #endif
  */
 
@@ -454,6 +459,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
    
     if (ava_pyscidx >= 0){
+    	//cprintf("pid=%d allocuvm: pysc[%d]=%p --> pysc[%d]=%p\n", proc->pid, ava_pyscidx, proc->pysc_pgmd[ava_pyscidx].pva, ava_pyscidx, a);
 	    proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
     }
   }
@@ -492,6 +498,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         if ((pyscidx = get_pgidx_in_pysc((void*)a)) == -1){
           panic("deallocate pysc: pyscidx not found");
         }
+        //cprintf("pid=%d deallocate: pysc[%d]=%p --> swap[%d]=%p\n", proc->pid, pyscidx, proc->pysc_pgmd[pyscidx].pva, pyscidx, (void*)-1);
         proc->pysc_pgmd[pyscidx].pva = (void*)-1;
       }
 
@@ -505,7 +512,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 	      if ((swapidx = get_pgidx_in_swap((void*)a)) == -1){
 	        panic("deallocate swap: swapidx not found");
 	      }
-
+	      //cprintf("pid=%d deallocate: swap[%d]=%p --> swap[%d]=%p\n", proc->pid, swapidx, proc->swap_pgmd[swapidx].pva, swapidx, (void*)-1);
 	      proc->swap_pgmd[swapidx].pva = (void*)-1;
 	    }
 		}
@@ -638,7 +645,19 @@ handle_pgfault(void* fadd)
 
   // the page doesn't exist in swap file or swap file doesn't allocated
   if ((swap_pgidx = get_pgidx_in_swap(fadd)) == -1 || proc->swapFile == 0)  {
-    panic("handle_pgfault: not in storage");
+    
+    cprintf("fadd=%p\n", fadd);
+    int i;
+    for (i = 0; i < MAX_FILE_PAGES; i++)
+    	 cprintf("pid=%d swap[%d]=%p\n", proc->pid, i, proc->swap_pgmd[i].pva);
+  	for (i = 0; i < MAX_FILE_PAGES; i++)
+    	 cprintf("pid=%d pysc[%d]=%p\n", proc->pid, i, proc->pysc_pgmd[i].pva);
+
+    if (proc->swapFile == 0)
+    	panic("handle_pgfault: not in storage1111");
+    else
+    	panic("handle_pgfault: not in storage");
+
     return -1;
   }
 

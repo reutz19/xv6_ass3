@@ -37,7 +37,7 @@ exec(char *path, char **argv)
 
   if((pgdir = setupkvm()) == 0)
     goto bad;
-
+  
   free_proc_pgmd(proc, 0);
 
   // Load program into memory.
@@ -105,8 +105,12 @@ exec(char *path, char **argv)
   freevm(oldpgdir);
 
   //*proc = new_Proc;
-  removeSwapFile(proc);
-  createSwapFile(proc);
+  #ifndef SELECTION_NONE
+    proc->oldest_pgidx = 0;
+    removeSwapFile(proc);
+    createSwapFile(proc);
+  #endif
+
   return 0;
 
  bad:
