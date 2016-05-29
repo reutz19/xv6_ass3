@@ -95,7 +95,8 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 #ifndef SELECTION_NONE
 
 int idx_page_out_FIFO(void);
-int idx_page_out_NFU(void);
+uint idx_page_out_NFU(void);
+void update_refer_pages(void);
 
 int 
 get_pgidx_in_pysc(void* va)
@@ -242,22 +243,27 @@ idx_page_out_FIFO(void)
 
 //#if defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
 
-int
+uint
 idx_page_out_NFU(void)
 {  
-	int min_index = 0;
-	int i, min_count;
-  pte_t* pte;
+	uint min_index = 0;
+	int i;
+  uint min_count = 0xffffffff;
+  //pte_t* pte;
 
   min_count = proc->pysc_pgmd[0].counter;
 
 	for (i = 0; i < MAX_PSYC_PAGES; i++)
 	{
+    if(proc->pysc_pgmd[i].pva == (void*)-1)
+      continue;
 		if(proc->pysc_pgmd[i].counter < min_count)
 		{
 			min_count = proc->pysc_pgmd[i].counter;
 			min_index = i;
 		}
+    // TODO: 1. proc->pysc_pgmd[i].counter = 0
+    
 	}
 
 	return min_index;
@@ -287,6 +293,7 @@ update_refer_pages(void)
 int 
 paged_out(int swap_pgidx)
 {
+  cprintf("i'm in paged_out\n");
   char buf[PGSIZE];
   int pysc_pgidx = 0; //TODO: change it to next line in comment:
   	
@@ -299,6 +306,7 @@ paged_out(int swap_pgidx)
   #endif
 
   //pysc_pgidx = 4;//idx_page_out_NFU();
+
   pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
   memset(buf, 0, PGSIZE); 
   memmove(buf, outpg_va, PGSIZE);

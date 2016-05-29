@@ -191,6 +191,7 @@ void 			copy_proc_pgmd(struct proc* dstp, struct proc* srcp);
 void 			create_proc_pgmd(struct proc* p);
 void 			copy_pysc_pgmd(struct proc *dstp, struct proc *srcp);
 void 			copy_swap_pgmd(struct proc *dstp, struct proc *srcp);
+void            update_refer_pages(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

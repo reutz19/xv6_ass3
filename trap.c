@@ -77,11 +77,12 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-  //#ifndef SELECTION_NONE
+  #ifndef SELECTION_NONE
   case T_PGFLT:
+    if ((proc != 0) && ((tf->cs&3) != 0) && (proc->pid > 2))
       handle_pgfault((void*)PGROUNDUP(rcr2()));
     break;
-  //#endif
+  #endif
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){

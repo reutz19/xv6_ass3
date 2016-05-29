@@ -20,6 +20,19 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+#ifndef SELECTION_NONE
+int ShellOrInit(char name[])
+{  
+  if(name[0]=='s' && name[1]=='h')
+    return 1;
+  if(name[0]=='i' && name[1]=='n'&& name[2]=='i' && name[3]=='t')
+    return 1;
+
+  return 0;
+}
+#endif
+
+
 void
 pinit(void)
 {
@@ -146,6 +159,7 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
 
+  /*
   //#ifndef SELECTION_NONE 
   // userinit and shell process has no swap file 
   if (proc->pid <= 2) {
@@ -162,6 +176,7 @@ fork(void)
   }
 
   //#endif
+  */
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -174,6 +189,25 @@ fork(void)
   safestrcpy(np->name, proc->name, sizeof(proc->name));
  
   pid = np->pid;
+
+  #ifndef SELECTION_NONE 
+  cprintf("inside fork\n");
+  if(pid > 2)
+  {
+    cprintf("fork: pid>2\n");
+    //create a new swap for sons of user init and shell
+    create_proc_pgmd(np);
+    np->oldest_pgidx = 0;
+  }
+
+  if(!ShellOrInit(proc->name))
+  {
+    cprintf("not shell or init\n");
+    copy_proc_pgmd(np, proc);
+    np->oldest_pgidx = proc->oldest_pgidx;
+  }
+  #endif
+
 
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
