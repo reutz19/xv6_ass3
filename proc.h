@@ -35,7 +35,7 @@ extern struct proc *proc asm("%gs:4");     // cpus[cpunum()].proc
 
 struct paggingmd {
   void* pva;            // page indentifier - by virtual memory
-  //uint offset;      // offset in file
+  uint counter;         // page counter for NFU scheme
 };
 
 

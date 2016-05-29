@@ -147,7 +147,10 @@ init_pysc_pgmd(struct proc *p)
 {
   int i;
   for (i = 0; i < MAX_PSYC_PAGES; i++)
+  {
     p->pysc_pgmd[i].pva = (void*)-1;
+  	p->pysc_pgmd[i].counter = 0;
+  }
 }
 
 void 
@@ -155,7 +158,10 @@ init_swap_pgmd(struct proc *p)
 {
   int i;
   for (i = 0; i < MAX_FILE_PAGES; i++)
+  {
     p->swap_pgmd[i].pva = (void*)-1;
+    p->swap_pgmd[i].counter = 0;
+  }
 }
 
 void 
@@ -163,7 +169,10 @@ copy_pysc_pgmd(struct proc *dstp, struct proc *srcp)
 {
   int i;
   for (i = 0; i < MAX_PSYC_PAGES; i++)
+  {
     dstp->pysc_pgmd[i].pva = srcp->pysc_pgmd[i].pva;
+  	dstp->pysc_pgmd[i].counter = srcp->pysc_pgmd[i].counter;
+  }
 }
 
 void 
@@ -171,7 +180,10 @@ copy_swap_pgmd(struct proc *dstp, struct proc *srcp)
 {
   int i;
   for (i = 0; i < MAX_FILE_PAGES; i++)
+  {
     dstp->swap_pgmd[i].pva = srcp->swap_pgmd[i].pva;
+    dstp->swap_pgmd[i].counter = srcp->swap_pgmd[i].counter;
+  }
 }
 
 
@@ -233,17 +245,42 @@ idx_page_out_FIFO(void)
 int
 idx_page_out_NFU(void)
 {  
+	int min_index = 0;
+	int i, min_count;
+  pte_t* pte;
 
-	return 4;
+  min_count = proc->pysc_pgmd[0].counter;
+
+	for (i = 0; i < MAX_PSYC_PAGES; i++)
+	{
+		if(proc->pysc_pgmd[i].counter < min_count)
+		{
+			min_count = proc->pysc_pgmd[i].counter;
+			min_index = i;
+		}
+	}
+
+	return min_index;
 }
 
 #endif
 
 void
-  update_refer_pages(void)
-  {
-    //TODO
-  }
+update_refer_pages(void)
+{
+  int i;
+  pte_t* pte;
+	for (i = 0; i < MAX_PSYC_PAGES; i++)
+	{
+		pte = walkpgdir(proc->pgdir, proc->pysc_pgmd[i].pva, 0); 
+
+		if(*pte & PTE_A)
+		{
+			proc->pysc_pgmd[i].counter++;
+			*pte = *pte & ~PTE_A; 
+		}
+	}
+}
 
 // select a page from pysc memory and paged it out, if given swap_pgidx >=0 then locate the paged out page in swap_pgidx
 // return the index of the freed pysc index page
