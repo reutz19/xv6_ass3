@@ -77,11 +77,11 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
+  #ifndef SELECTION_NONE
   case T_PGFLT:
-    #ifndef SELECTION_NONE
       handle_pgfault((void*)PGROUNDUP(rcr2()));
-    #endif
     break;
+  #endif
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){
@@ -106,11 +106,12 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
-  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
+  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER){
     #ifdef SELECTION_NFU
       update_refer_pages();
     #endif
     yield();
+  }
 
   // Check if the process has been killed since we yielded
   if(proc && proc->killed && (tf->cs&3) == DPL_USER)

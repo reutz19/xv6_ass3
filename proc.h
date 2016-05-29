@@ -80,7 +80,7 @@ struct proc {
   struct file *swapFile;	     // Swap file. must initiate with create swap file
   struct paggingmd swap_pgmd[MAX_FILE_PAGES]; //swap file pages meta-data
   struct paggingmd pysc_pgmd[MAX_PSYC_PAGES]; //pages in physical memory
-  void *pnt_page;             // pointer to the "oldest" page in physical memory
+  int    oldest_pgidx;          // pointer to the "oldest" page in physical memory - start of queque
   
 };
 

@@ -94,7 +94,8 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 
 #ifndef SELECTION_NONE
 
-int idx_page_out();
+int idx_page_out_FIFO();
+int idx_page_out_NFU();
 
 int 
 get_pgidx_in_pysc(void* va)
@@ -179,9 +180,14 @@ int
 paged_out(int swap_pgidx)
 {
   char buf[PGSIZE];
-  int pysc_pgidx = 4; //TODO: change it to next line in comment:
-  //int pysc_pgidx = idx_page_out();
-  
+  int pysc_pgidx = 0; //TODO: change it to next line in comment:
+  	
+  #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
+  	pysc_pgidx = idx_page_out_FIFO();
+  #else 
+  	pysc_pgidx = idx_page_out_NFU();
+  #endif
+
   pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
   memset(buf, 0, PGSIZE); 
   memmove(buf, outpg_va, PGSIZE);
@@ -216,60 +222,67 @@ paged_out(int swap_pgidx)
 
 // -----------   manage page replacemaent schemes --------
 
-int
-idx_page_out()
-{
-  int ret_index = -1;//, next_index;
-  //pte_t *va_tmp;
+#if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
 
-  #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
-    // find the index of of the current "oldest" page
-  ret_index = get_pgidx_in_pysc(proc->pnt_page);
-  next_index = ret_index;
-  // find the next page in the "queue"
+int
+idx_page_out_FIFO()
+{
+	int ret_index = proc->oldest_pgidx;
+	
+	#ifdef SELECTION_SCFIFO
+
+  pte_t* pte;
+
+  // until he find the next page in the "queue"
   for(;;)
   {
-    int i=0; 
+   /* int i=0; 
     cprintf("process->pid: %d\n", proc->pid);
     cprintf("process->pnt_page: %x     index:%d\n", proc->pnt_page, ret_index);
     while(i<15){
       cprintf("pysc_pgmd[%d] = %x\n",i, proc->pysc_pgmd[i].pva);
       i++;
     }
+    */
 
-    next_index = (next_index + 1) % MAX_PSYC_PAGES;
-    va_tmp = proc->pysc_pgmd[next_index].pva;
-    if(va_tmp != (void*)-1)
-    {
-      #ifdef SELECTION_SCFIFO
-        if(*va_tmp & PTE_A){
-          *va_tmp = *va_tmp & ~PTE_A; // set off Reference bit and continue to next page
-        }
-        else{ // Reference bit is already off, so this is the new "oldest" page
-          proc->pnt_page = va_tmp;
-          break;    
-        }      
-      #endif
-
-      // only FIFO scheme:
-      proc->pnt_page = va_tmp;
-      break;
+    //address of page out
+   	pte_t* pte = walkpgdir(proc->pgdir, proc->pysc_pgmd[ret_index].pva, 1); //return pointer to page on pysc memory  
+    if (!(*pte & PTE_A)){
+    	//foun
+    	proc->oldest_pgidx = ret_index;
+    	break;
     }
+
+  	// set off Reference bit and continue to next page
+    *pte = *pte & ~PTE_A; 
+
+    //updape oldest_pgidx counter
+    ret_index = (ret_index + 1) % MAX_PSYC_PAGES;
   }
 
-  #endif 
+  #else
 
-  #if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 
-
-
-
-
-  
+  	//updape oldest_pgidx counter
+  	proc->oldest_pgidx = (ret_index + 1) % MAX_PSYC_PAGES;
 
   #endif
 
   return ret_index;
 }
+
+#endif 
+
+
+#if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 
+
+int
+idx_page_out_NFU()
+{  
+
+	return 0;
+}
+
+#endif
 
 
 /*   #if defined(SELECTION_DEAFAULT) || defined(SELECTION_NFU) 

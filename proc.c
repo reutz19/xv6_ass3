@@ -146,22 +146,22 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
 
+  #ifndef SELECTION_NONE 
   // userinit and shell process has no swap file 
   if (proc->pid <= 2) {
     if (np->pid > 2) {
       //create a new swap for sons of user init and shell
       create_proc_pgmd(np);
+      np->oldest_pgidx = 0;
     }
   }
   else {
     // dup swap file from father to son and copy pages metadata
     copy_proc_pgmd(np, proc);
+    np->oldest_pgidx = proc->oldest_pgidx;
   }
-  // FIFO scheme - initiate "queue" to the first page in the metadata
-  #ifdef SELCTION_FIFO
-    np->pnt_page = np->pysc_pgmd[0].pva;
-  #endif
 
+  #endif
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
