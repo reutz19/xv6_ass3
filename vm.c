@@ -178,24 +178,22 @@ copy_swap_pgmd(struct proc *dstp, struct proc *srcp)
 int 
 paged_out(int swap_pgidx)
 {
-  cprintf("in paged_out\n");
   char buf[PGSIZE];
   int pysc_pgidx = 4; //TODO: change it to next line in comment:
   //int pysc_pgidx = idx_page_out();
-
+  
   pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
-  cprintf("the outpg_va is: %x\n", outpg_va);
   memset(buf, 0, PGSIZE); 
   memmove(buf, outpg_va, PGSIZE);
   
-  pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 0); //return pointer to page on pysc memory
-  cprintf("the pte is: %x\n", pte);
+  pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 1); //return pointer to page on pysc memory
   *pte = *pte & ~PTE_P;     // set not present
   *pte = *pte | PTE_PG;     // set swapped out
-  cprintf("before kfree, in paged_out func\n");
-  kfree((char*)outpg_va);   // free pysical memory
-  cprintf("after kfree, in paged_out func\n");
+  
+  char * v = p2v(PTE_ADDR(*pte));
+  kfree(v);   							// free pysical memory
   lcr3(v2p(proc->pgdir));   // update pgdir after page out
+  
   proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
 
   if (swap_pgidx < 0){
@@ -221,8 +219,8 @@ paged_out(int swap_pgidx)
 int
 idx_page_out()
 {
-  int ret_index, next_index;
-  pte_t *va_tmp;
+  int ret_index = -1;//, next_index;
+  //pte_t *va_tmp;
 
   #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
     // find the index of of the current "oldest" page
@@ -423,7 +421,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return 0;
   if(newsz < oldsz)
     return oldsz;
-
+	
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
     int ava_pyscidx = -1;
@@ -443,7 +441,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
    
     if (ava_pyscidx >= 0){
-      proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
+	    proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
     }
   }
   return newsz;
@@ -489,17 +487,15 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     //not present and swapped out
     else if (((*pte & PTE_P) == 0) && ((*pte & PTE_PG) != 0))
     { 
+      if (proc->pid > 2 && proc->pgdir == pgdir) {
+	      int swapidx;
+	      if ((swapidx = get_pgidx_in_swap((void*)a)) == -1){
+	        panic("deallocate swap: swapidx not found");
+	      }
 
-      int swapidx;
-      if ((swapidx = get_pgidx_in_swap((void*)a)) == -1){
-        panic("deallocate swap: swapidx not found");
-      }
-      
-      //char buf[PGSIZE];
-      //memset(buf, 0, PGSIZE);
-      //writeToSwapFile(proc, buf, swapidx*(PGSIZE), PGSIZE);
-      proc->swap_pgmd[swapidx].pva = (void*)-1;
-    }
+	      proc->swap_pgmd[swapidx].pva = (void*)-1;
+	    }
+		}
   }
   return newsz;
 }
@@ -642,7 +638,7 @@ handle_pgfault(void* fadd)
     panic("handle_pgfault: read from swap file");
 
   //return pointer to page on pysc memory
-  pte_t* pte = walkpgdir(proc->pgdir, fadd, 0); 
+  pte_t* pte = walkpgdir(proc->pgdir, fadd, 1); 
   *pte = *pte & ~PTE_PG;  //not swaped out
 
   if ((pysc_pgidx = get_free_pgidx_pysc()) == -1){ 
@@ -692,7 +688,7 @@ copy_swap_content(struct proc* dstp, struct proc* srcp)
 void 
 create_proc_pgmd(struct proc* p)
 {
-  createSwapFile(p);
+ 	createSwapFile(p);
   init_pysc_pgmd(p);
   init_swap_pgmd(p);
 }
