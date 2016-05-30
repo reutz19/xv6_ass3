@@ -134,8 +134,12 @@ get_free_pgidx_swap(void)
 int 
 get_free_pgidx_pysc(void)
 {
-  int i;
-  for (i = 0; i < MAX_PSYC_PAGES; i++)
+  int i = 0;
+  //#if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
+    i = proc->oldest_pgidx;
+  //#endif
+
+  for (; i < MAX_PSYC_PAGES; i++)
   {
     if (proc->pysc_pgmd[i].pva == (void*)-1)
       return i;
@@ -189,7 +193,7 @@ copy_swap_pgmd(struct proc *dstp, struct proc *srcp)
 
 //the function run a full circle from oldest_pgidx and block all holls by moving celles back
 void 
-clear_pycs_by_idx(uint idx)
+clear_pysc_and_block_holls(uint idx)
 {
   int i = 0,j;
   //set pysc_pgmd
@@ -360,7 +364,7 @@ paged_out(int swap_pgidx)
   //cprintf("in paged_out:swap_pgidx = %d     after KFREE\n", swap_pgidx);
   lcr3(v2p(proc->pgdir));   // update pgdir after page out
 
-  clear_pycs_by_idx(pysc_pgidx);
+  clear_pysc_and_block_holls(pysc_pgidx);
   //proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
   *pte = *pte & ~PTE_P;     // set not present
   *pte = *pte | PTE_PG;     // set swapped out
@@ -520,7 +524,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     
     #ifndef SELECTION_NONE
       if (proc->pid > 2 && (ava_pyscidx = get_free_pgidx_pysc()) == -1){
-        cprintf("in allocuvm");
+        cprintf("in allocuvm\n");
         ava_pyscidx = paged_out(-1); // page out from pysc memory to swap
       }
     #endif
@@ -582,7 +586,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
             panic("deallocate pysc: pyscidx not found");
           }
           //cprintf("pid=%d deallocate: pysc[%d]=%p --> swap[%d]=%p\n", proc->pid, pyscidx, proc->pysc_pgmd[pyscidx].pva, pyscidx, (void*)-1);
-          clear_pycs_by_idx(pyscidx);
+          clear_pysc_and_block_holls(pyscidx);
           //proc->pysc_pgmd[pyscidx].pva = (void*)-1;
         }
       #endif
@@ -790,13 +794,17 @@ handle_pgfault(void* fadd)
 void
 copy_swap_content(struct proc* dstp, struct proc* srcp)
 {
-  uint i, pgoff;
-  char buf[PGSIZE];
+  uint i, j, pgoff, divs = 4;
+  int bufsize = PGSIZE / divs; //copy in piceas of bufsize
+  char buf[bufsize];
+
   for (i = 0; i < MAX_FILE_PAGES; i++) {
-    pgoff = i * PGSIZE;
-    memset(buf, 0, PGSIZE);
-    readFromSwapFile(srcp, buf, pgoff, PGSIZE);
-    writeToSwapFile(dstp, buf, pgoff, PGSIZE);
+    for (j = 0; j < divs; j++){
+      pgoff = (i * PGSIZE) + (j * bufsize);
+      memset(buf, 0, bufsize);
+      readFromSwapFile(srcp, buf, pgoff, PGSIZE);
+      writeToSwapFile(dstp, buf, pgoff, PGSIZE);
+    }
   }
 }
 
@@ -807,6 +815,7 @@ create_proc_pgmd(struct proc* p)
  	createSwapFile(p);
   init_pysc_pgmd(p);
   init_swap_pgmd(p);
+  p->oldest_pgidx = 0;
 }
 
 // clear all proc pages data
@@ -820,6 +829,7 @@ free_proc_pgmd(struct proc* p, uint remove)
 
   init_pysc_pgmd(p);
   init_swap_pgmd(p);
+  p->oldest_pgidx = 0;
 }
 
 // 1. copy srcp swap file with the name of dstp   
@@ -831,6 +841,7 @@ copy_proc_pgmd(struct proc* dstp, struct proc* srcp)
   copy_swap_content(dstp, srcp);
   copy_pysc_pgmd(dstp, srcp);
   copy_swap_pgmd(dstp, srcp);
+  dstp->oldest_pgidx = srcp->oldest_pgidx;
 }
 
 #endif

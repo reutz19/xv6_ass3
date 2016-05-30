@@ -102,7 +102,6 @@ exec(char *path, char **argv)
   freevm(oldpgdir);
 
   #ifndef SELECTION_NONE
-    proc->oldest_pgidx = 0;
     removeSwapFile(proc);
     createSwapFile(proc);
   #endif

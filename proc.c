@@ -166,13 +166,11 @@ fork(void)
   { 
     // copy from father
     copy_proc_pgmd(np, proc);
-    np->oldest_pgidx = proc->oldest_pgidx;
   } 
   else if (np->pid > 2)  // son is not shell
   {
     // create new 
     create_proc_pgmd(np);
-    np->oldest_pgidx = 0;
   }
 
   #endif
@@ -197,14 +195,12 @@ fork(void)
     cprintf("fork: pid>2\n");
     //create a new swap for sons of user init and shell
     create_proc_pgmd(np);
-    np->oldest_pgidx = 0;
   }
 
   if(!ShellOrInit(proc->name))
   {
     cprintf("not shell or init\n");
     copy_proc_pgmd(np, proc);
-    np->oldest_pgidx = proc->oldest_pgidx;
   }
   #endif
   */
