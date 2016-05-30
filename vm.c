@@ -234,7 +234,7 @@ idx_page_out_FIFO(void)
   	proc->oldest_pgidx = (ret_index + 1) % MAX_PSYC_PAGES;
 
   #endif
-
+  cprintf("in idx_page_out_FIFO: ret_index=%d\n",ret_index);
   return ret_index;
 }
 
@@ -503,7 +503,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
    
-    if (ava_pyscidx >= 0){
+    if (ava_pyscidx >= 0 && proc->pid > 2){
     	//cprintf("pid=%d allocuvm: pysc[%d]=%p --> pysc[%d]=%p\n", proc->pid, ava_pyscidx, proc->pysc_pgmd[ava_pyscidx].pva, ava_pyscidx, a);
 	    proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
     }
