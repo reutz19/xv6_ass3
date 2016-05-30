@@ -81,6 +81,7 @@ trap(struct trapframe *tf)
   case T_PGFLT:
     if ((proc != 0) && ((tf->cs&3) != 0) && (proc->pid > 2))
       handle_pgfault((void*)PGROUNDUP(rcr2()));
+    lapiceoi();
     break;
   #endif
   //PAGEBREAK: 13

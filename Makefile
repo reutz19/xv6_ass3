@@ -70,7 +70,7 @@ QEMU = $(shell if which qemu > /dev/null; \
 endif
 
 #CC = $(TOOLPREFIX)gcc
-SELECTION = DEFUALT
+SELECTION = DEFAULT
 CC = $(TOOLPREFIX)gcc -D SELECTION
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
