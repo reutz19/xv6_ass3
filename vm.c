@@ -187,6 +187,41 @@ copy_swap_pgmd(struct proc *dstp, struct proc *srcp)
   }
 }
 
+//the function run a full circle from oldest_pgidx and block all holls by moving celles back
+void 
+clear_pycs_by_idx(uint idx)
+{
+  int i = 0,j;
+  //set pysc_pgmd
+  proc->pysc_pgmd[idx].pva = (void*)-1;
+  proc->pysc_pgmd[idx].counter = 0;
+
+  // remove hols
+  int oldest = proc->oldest_pgidx;
+  int curr_idx, curr, next;
+  int diff = 1;
+  while (i < MAX_FILE_PAGES-diff)
+  {
+    curr_idx = (oldest + i) % MAX_PSYC_PAGES;
+
+    //found a holl
+    while (proc->pysc_pgmd[curr_idx].pva == (void*)-1)
+    {
+      //for each till end do pysc_pgmd[curr]=pysc_pgmd[curr+1]
+      curr = curr_idx;
+      for (j = 0; j < MAX_FILE_PAGES-diff-i; j++){
+        next = (curr+1) % MAX_PSYC_PAGES;
+        proc->pysc_pgmd[curr] = proc->pysc_pgmd[next];
+        curr = next;
+      }
+      //clean last cell
+      proc->pysc_pgmd[curr].counter = 0;
+      proc->pysc_pgmd[curr].pva = (void*)-1;
+      diff++;
+    }
+    i++;
+  }
+}
 
 // -----------   manage page replacemaent schemes --------
 
@@ -243,10 +278,8 @@ idx_page_out_FIFO(void)
   return ret_index;
 }
 
-//#endif 
 #elif defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
 
-//#if defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
 uint
 idx_page_out_NFU(void)
 {  
@@ -327,7 +360,8 @@ paged_out(int swap_pgidx)
   //cprintf("in paged_out:swap_pgidx = %d     after KFREE\n", swap_pgidx);
   lcr3(v2p(proc->pgdir));   // update pgdir after page out
 
-  proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
+  clear_pycs_by_idx(pysc_pgidx);
+  //proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
   *pte = *pte & ~PTE_P;     // set not present
   *pte = *pte | PTE_PG;     // set swapped out
 
@@ -548,7 +582,8 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
             panic("deallocate pysc: pyscidx not found");
           }
           //cprintf("pid=%d deallocate: pysc[%d]=%p --> swap[%d]=%p\n", proc->pid, pyscidx, proc->pysc_pgmd[pyscidx].pva, pyscidx, (void*)-1);
-          proc->pysc_pgmd[pyscidx].pva = (void*)-1;
+          clear_pycs_by_idx(pyscidx);
+          //proc->pysc_pgmd[pyscidx].pva = (void*)-1;
         }
       #endif
 
