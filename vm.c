@@ -196,8 +196,8 @@ int
 idx_page_out_FIFO(void)
 {
 	int ret_index = proc->oldest_pgidx;
-	
-  int i=0; 
+	cprintf("in FIFO\n");
+  /*int i=0; 
   cprintf("process->pid: %d  proc->oldest_pgidx: %d\n", proc->pid, proc->oldest_pgidx);
   while(i<15){
     cprintf("pysc_pgmd[%d] = %x\n",i, proc->pysc_pgmd[i].pva);
@@ -208,7 +208,7 @@ idx_page_out_FIFO(void)
     cprintf("swap_pgmd[%d] = %x\n",i, proc->swap_pgmd[i].pva);
     i++;
   } 
-
+  */
 
 	#ifdef SELECTION_SCFIFO
 
@@ -238,12 +238,13 @@ idx_page_out_FIFO(void)
   	proc->oldest_pgidx = (ret_index + 1) % MAX_PSYC_PAGES;
 
   #endif
-  cprintf("in idx_page_out_FIFO: ret_index=%d\n",ret_index);
+
+  //cprintf("in idx_page_out_FIFO: ret_index=%d\n",ret_index);
   return ret_index;
 }
 
 //#endif 
-#else
+#elif defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
 
 //#if defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
 uint
@@ -296,19 +297,17 @@ update_refer_pages(void)
 int 
 paged_out(int swap_pgidx)
 {
-  cprintf("i'm in paged_out\n");
+  //cprintf("i'm in paged_out\n");
   int pysc_pgidx;
   	
   #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
   	pysc_pgidx = idx_page_out_FIFO();
-  #else
+  #elif defined(SELECTION_DEFAULT) || defined(SELECTION_NFU) 
   	pysc_pgidx = idx_page_out_NFU();
   #endif
 
-  // = 4;//idx_page_out_NFU();
-
   pte_t* outpg_va = proc->pysc_pgmd[pysc_pgidx].pva;
-  cprintf("in paged_out: outpg_va=%x   before KFREE\n", outpg_va);
+  //cprintf("in paged_out: outpg_va=%x   before KFREE\n", outpg_va);
   pte_t* pte = walkpgdir(proc->pgdir, outpg_va, 0); //return pointer to page on pysc memory
   
   if (swap_pgidx < 0){
@@ -325,14 +324,14 @@ paged_out(int swap_pgidx)
 
   char * v = p2v(PTE_ADDR(*pte));
   kfree(v);   							// free pysical memory
-  cprintf("in paged_out:swap_pgidx = %d     after KFREE\n", swap_pgidx);
+  //cprintf("in paged_out:swap_pgidx = %d     after KFREE\n", swap_pgidx);
   lcr3(v2p(proc->pgdir));   // update pgdir after page out
 
   proc->pysc_pgmd[pysc_pgidx].pva = (void*)-1;
   *pte = *pte & ~PTE_P;     // set not present
   *pte = *pte | PTE_PG;     // set swapped out
 
-  cprintf("in paged_out:after writeToSwapFile\n");
+  //cprintf("in paged_out:after writeToSwapFile\n");
   return pysc_pgidx;
 }
 
@@ -478,13 +477,19 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   if(newsz < oldsz)
     return oldsz;
 	
+  #ifndef SELECTION_NONE
+  int ava_pyscidx = -1;
+  #endif
+
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
-    int ava_pyscidx = -1;
-
-    if (proc->pid > 2 && (ava_pyscidx = get_free_pgidx_pysc()) == -1){
-      ava_pyscidx = paged_out(-1); // page out from pysc memory to swap
-    }
+    
+    #ifndef SELECTION_NONE
+      if (proc->pid > 2 && (ava_pyscidx = get_free_pgidx_pysc()) == -1){
+        cprintf("in allocuvm");
+        ava_pyscidx = paged_out(-1); // page out from pysc memory to swap
+      }
+    #endif
 
     mem = kalloc();
     if(mem == 0){
@@ -495,11 +500,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
-   
-    if (ava_pyscidx >= 0){
-    	//cprintf("pid=%d allocuvm: pysc[%d]=%p --> pysc[%d]=%p\n", proc->pid, ava_pyscidx, proc->pysc_pgmd[ava_pyscidx].pva, ava_pyscidx, a);
-	    proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
-    }
+    
+    #ifndef SELECTION_NONE
+      if (ava_pyscidx >= 0){
+      	//cprintf("pid=%d allocuvm: pysc[%d]=%p --> pysc[%d]=%p\n", proc->pid, ava_pyscidx, proc->pysc_pgmd[ava_pyscidx].pva, ava_pyscidx, a);
+  	    proc->pysc_pgmd[ava_pyscidx].pva = (void*)a;
+      }
+    #endif
   }
   return newsz;
 }
@@ -517,7 +524,10 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   if(newsz >= oldsz)
     return oldsz;
 
-  int pyscidx;
+  #ifndef SELECTION_NONE 
+  int pyscidx; 
+  #endif
+  
   a = PGROUNDUP(newsz);
   for(; a  < oldsz; a += PGSIZE){
     pte = walkpgdir(pgdir, (char*)a, 0);
@@ -531,17 +541,20 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       char *v = p2v(pa);
       kfree(v);
       
-      if (proc->pid > 2 && proc->pgdir == pgdir) 
-      {
-        if ((pyscidx = get_pgidx_in_pysc((void*)a)) == -1){
-          panic("deallocate pysc: pyscidx not found");
+      #ifndef SELECTION_NONE
+        if (proc->pid > 2 && proc->pgdir == pgdir) 
+        {
+          if ((pyscidx = get_pgidx_in_pysc((void*)a)) == -1){
+            panic("deallocate pysc: pyscidx not found");
+          }
+          //cprintf("pid=%d deallocate: pysc[%d]=%p --> swap[%d]=%p\n", proc->pid, pyscidx, proc->pysc_pgmd[pyscidx].pva, pyscidx, (void*)-1);
+          proc->pysc_pgmd[pyscidx].pva = (void*)-1;
         }
-        //cprintf("pid=%d deallocate: pysc[%d]=%p --> swap[%d]=%p\n", proc->pid, pyscidx, proc->pysc_pgmd[pyscidx].pva, pyscidx, (void*)-1);
-        proc->pysc_pgmd[pyscidx].pva = (void*)-1;
-      }
+      #endif
 
       *pte = 0;
-    }
+    }    
+    #ifndef SELECTION_NONE
     //not present and swapped out
     else if (((*pte & PTE_P) == 0) && ((*pte & PTE_PG) != 0))
     { 
@@ -554,6 +567,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 	      proc->swap_pgmd[swapidx].pva = (void*)-1;
 	    }
 		}
+    #endif
   }
   return newsz;
 }
@@ -680,39 +694,32 @@ handle_pgfault(void* fadd)
   //index of page in swap file and in pysical memory
   int swap_pgidx;
   int pysc_pgidx;
-  cprintf("in page_fault, page that we want to read is %x\n", fadd);
+  //cprintf("in page_fault, page that we want to read is %x\n", fadd);
   // the page doesn't exist in swap file or swap file doesn't allocated
   if ((swap_pgidx = get_pgidx_in_swap(fadd)) == -1 || proc->swapFile == 0)  {
     
-    cprintf("fadd=%p\n", fadd);
+    /*cprintf("fadd=%p\n", fadd);
     int i;
     for (i = 0; i < MAX_FILE_PAGES; i++)
     	 cprintf("pid=%d swap[%d]=%p\n", proc->pid, i, proc->swap_pgmd[i].pva);
   	for (i = 0; i < MAX_FILE_PAGES; i++)
     	 cprintf("pid=%d pysc[%d]=%p\n", proc->pid, i, proc->pysc_pgmd[i].pva);
+    */
 
-    if (proc->swapFile == 0)
-    	panic("handle_pgfault: not in storage1111");
-    else
-    	panic("handle_pgfault: not in storage");
+    panic("handle_pgfault: not in storage");
 
     return -1;
   }
 
   // ----- the page exist in swap file ----
-  /*
-  uint pgoff = ((uint)swap_pgidx) * PGSIZE;
-  char buf[PGSIZE];
-  // kalloc to buf
-  if (readFromSwapFile(proc, buf, pgoff, PGSIZE) == -1)
-    panic("handle_pgfault: read from swap file");
-  */
+  
   //return pointer to page on pysc memory
   pte_t* pte = walkpgdir(proc->pgdir, fadd, 0); 
   *pte = *pte & ~PTE_PG;  //not swaped out
 
   if ((pysc_pgidx = get_free_pgidx_pysc()) == -1){ 
     // pysc memory is full need to swap out a page
+    cprintf("in handle_pgfault\n");
     pysc_pgidx = paged_out(swap_pgidx); //after that --> pysc_pgidx is free for future allocation
   }
   else {
@@ -726,20 +733,19 @@ handle_pgfault(void* fadd)
   }
   
   uint pgoff = ((uint)swap_pgidx) * PGSIZE;
-  //char buf[PGSIZE];
+
   // kalloc to buf
   memset(mem, 0, PGSIZE);   
-
-  if (readFromSwapFile(proc, mem, pgoff, PGSIZE) == -1)
+  if (readFromSwapFile(proc, mem, pgoff, PGSIZE) == -1) {
     panic("handle_pgfault: read from swap file");
+    return -1;
+  }
 
   if (mappages(proc->pgdir, fadd, PGSIZE, v2p(mem), PTE_W|PTE_U) == -1){
     panic("handle_pgfault: mapppages - problem in mapping virtual to pysical");
     return -1;
   }
   
-  // copy page content from buf to fadd 
-  //memmove(fadd, buf, PGSIZE);   
   //update pysc memory struct  
   proc->pysc_pgmd[pysc_pgidx].pva = fadd;
   
@@ -758,7 +764,6 @@ copy_swap_content(struct proc* dstp, struct proc* srcp)
     writeToSwapFile(dstp, buf, pgoff, PGSIZE);
   }
 }
-
 
 //init all proc pages initial data inculing swp file
 void 

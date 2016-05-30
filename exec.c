@@ -10,7 +10,6 @@
 int
 exec(char *path, char **argv)
 {
-  cprintf("in exec\n");
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -65,7 +64,9 @@ exec(char *path, char **argv)
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   sp = sz;
 
-  free_proc_pgmd(proc, 0);
+  #ifndef SELECTION_NONE
+    free_proc_pgmd(proc, 0);
+  #endif
 
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
@@ -97,15 +98,9 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
-  //reset all proc pages meta data: delete old swap file and create a new one, clear all pages
-  
   switchuvm(proc);
-  
-  /*struct proc new_Proc = *proc;
-  *proc = old_proc;*/
   freevm(oldpgdir);
 
-  //*proc = new_Proc;
   #ifndef SELECTION_NONE
     proc->oldest_pgidx = 0;
     removeSwapFile(proc);

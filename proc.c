@@ -159,25 +159,24 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
 
-  /*
-  //#ifndef SELECTION_NONE 
-  // userinit and shell process has no swap file 
-  if (proc->pid <= 2) {
-    if (np->pid > 2) {
-      //create a new swap for sons of user init and shell
-      create_proc_pgmd(np);
-      np->oldest_pgidx = 0;
-    }
-  }
-  else {
-    // dup swap file from father to son and copy pages metadata
+  
+  #ifndef SELECTION_NONE 
+ 
+  if (proc->pid > 2)     // father is not shell or initproc
+  { 
+    // copy from father
     copy_proc_pgmd(np, proc);
     np->oldest_pgidx = proc->oldest_pgidx;
+  } 
+  else if (np->pid > 2)  // son is not shell
+  {
+    // create new 
+    create_proc_pgmd(np);
+    np->oldest_pgidx = 0;
   }
 
-  //#endif
-  */
-
+  #endif
+  
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -190,6 +189,7 @@ fork(void)
  
   pid = np->pid;
 
+  /*
   #ifndef SELECTION_NONE 
   cprintf("inside fork\n");
   if(pid > 2)
@@ -207,7 +207,7 @@ fork(void)
     np->oldest_pgidx = proc->oldest_pgidx;
   }
   #endif
-
+  */
 
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
@@ -237,7 +237,9 @@ exit(void)
     }
   }
 
-  free_proc_pgmd(proc,1); //remove swap file and pages metadata
+  #ifndef SELECTION_NONE
+    free_proc_pgmd(proc,1); //remove swap file and pages metadata
+  #endif
 
   begin_op();
   iput(proc->cwd);
@@ -287,16 +289,12 @@ wait(void)
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
-        // ***************** check what heppen if we tdelete the file twice *******************
-        //tmp = *p;              //backup proc
-        //free_proc_pgmd(p, 0);  //clear all pages meta data
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         release(&ptable.lock);
-        //free_proc_pgmd(&tmp,1); //remove swap file after releas lock
         return pid;
       }
     }
