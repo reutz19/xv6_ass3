@@ -16,6 +16,33 @@ char* m1[COUNT];
 volatile int
 main(int argc, char *argv[])
 {
+	int i, pid, proc_pid, wpid;
+	char* address;
+
+	//creating 'COUNT' pages
+	for (i = 0; i < COUNT; ++i)
+	{
+		if ((pid = fork()) == 0){ // son
+			address = sbrk(PGSIZE);
+			proc_pid = getpid();
+			printf(1, "proc_pid=%d allocated page #%d at address: %x\n", proc_pid, i, address);
+			exit();
+		}
+	}
+	
+	while((wpid=wait()) >= 0){
+		printf(1, "exit pid=%d\n", wpid);
+	}
+	printf(1,"Finished Successfuly!!!\n");
+
+	exit();
+	return 0;
+}
+
+/*
+volatile int
+main(int argc, char *argv[])
+{
 	int i,j;
 
 	//creating 'COUNT' pages
@@ -39,4 +66,4 @@ main(int argc, char *argv[])
 
 	exit();
 	return 0;
-}
+}*/

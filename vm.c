@@ -235,7 +235,6 @@ int
 idx_page_out_FIFO(void)
 {
 	int ret_index = proc->oldest_pgidx;
-	cprintf("in FIFO\n");
   /*int i=0; 
   cprintf("process->pid: %d  proc->oldest_pgidx: %d\n", proc->pid, proc->oldest_pgidx);
   while(i<15){
@@ -335,7 +334,7 @@ int
 paged_out(int swap_pgidx)
 {
   //cprintf("i'm in paged_out\n");
-  int pysc_pgidx;
+  int pysc_pgidx = 0;
   	
   #if defined(SELECTION_FIFO) || defined(SELECTION_SCFIFO) 
   	pysc_pgidx = idx_page_out_FIFO();
@@ -524,7 +523,6 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     
     #ifndef SELECTION_NONE
       if (proc->pid > 2 && (ava_pyscidx = get_free_pgidx_pysc()) == -1){
-        cprintf("in allocuvm\n");
         ava_pyscidx = paged_out(-1); // page out from pysc memory to swap
       }
     #endif
@@ -758,7 +756,6 @@ handle_pgfault(void* fadd)
 
   if ((pysc_pgidx = get_free_pgidx_pysc()) == -1){ 
     // pysc memory is full need to swap out a page
-    cprintf("in handle_pgfault\n");
     pysc_pgidx = paged_out(swap_pgidx); //after that --> pysc_pgidx is free for future allocation
   }
   else {
@@ -791,19 +788,26 @@ handle_pgfault(void* fadd)
   return 0;
 }
 
+#define SWAP_BUF_DIVS   (4)
+#define SWAP_BUF_SIZE  PGSIZE / SWAP_BUF_DIVS
+
 void
 copy_swap_content(struct proc* dstp, struct proc* srcp)
 {
-  uint i, j, pgoff, divs = 4;
-  int bufsize = PGSIZE / divs; //copy in piceas of bufsize
-  char buf[bufsize];
+  uint i, j, pgoff; //copy in piceas of bufsize
+  char buf[SWAP_BUF_SIZE];
 
-  for (i = 0; i < MAX_FILE_PAGES; i++) {
-    for (j = 0; j < divs; j++){
-      pgoff = (i * PGSIZE) + (j * bufsize);
-      memset(buf, 0, bufsize);
-      readFromSwapFile(srcp, buf, pgoff, PGSIZE);
-      writeToSwapFile(dstp, buf, pgoff, PGSIZE);
+  for (i = 0; i < MAX_FILE_PAGES; i++) 
+  {
+    if (srcp->swap_pgmd[i].pva != (void*)-1) 
+    {
+      for (j = 0; j < SWAP_BUF_DIVS; j++)
+      {
+        pgoff = (i * PGSIZE) + (j * SWAP_BUF_SIZE);
+        memset(buf, 0, SWAP_BUF_SIZE);
+        readFromSwapFile(srcp, buf, pgoff, PGSIZE);
+        writeToSwapFile(dstp, buf, pgoff, PGSIZE);
+      }
     }
   }
 }

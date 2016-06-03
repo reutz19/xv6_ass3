@@ -161,7 +161,7 @@ fork(void)
 
   
   #ifndef SELECTION_NONE 
- 
+  
   if (proc->pid > 2)     // father is not shell or initproc
   { 
     // copy from father
