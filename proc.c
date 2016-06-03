@@ -20,6 +20,15 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+static char *states[] = {
+  [UNUSED]    "unused",
+  [EMBRYO]    "embryo",
+  [SLEEPING]  "sleep ",
+  [RUNNABLE]  "runble",
+  [RUNNING]   "run   ",
+  [ZOMBIE]    "zombie"
+  };
+
 #ifndef SELECTION_NONE
 int ShellOrInit(char name[])
 {  
@@ -30,8 +39,10 @@ int ShellOrInit(char name[])
 
   return 0;
 }
-#endif
 
+uint free_pages_after_kernel = 0;
+void print_proc_data(struct proc* p, char* state);
+#endif
 
 void
 pinit(void)
@@ -91,6 +102,12 @@ found:
 void
 userinit(void)
 {
+
+#ifndef SELECTION_NONE
+  //get num of free pages after kernel finished loading
+  free_pages_after_kernel = get_freepages_num();
+#endif
+
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
   
@@ -234,6 +251,15 @@ exit(void)
   }
 
   #ifndef SELECTION_NONE
+    #ifdef VERBOSE_PRINT_TRUE 
+      char* state;
+      if(proc->state >= 0 && proc->state < NELEM(states) && states[proc->state])
+      state = states[proc->state];
+    else
+      state = "???";
+      print_proc_data(proc, state);
+      cprintf("\n");
+    #endif
     free_proc_pgmd(proc,1); //remove swap file and pages metadata
   #endif
 
@@ -480,6 +506,29 @@ kill(int pid)
   return -1;
 }
 
+
+uint
+get_pysc_page_num(struct proc* p){
+  int i, num = 0;
+  for (i=0; i < MAX_PSYC_PAGES; i++){
+    if (p->pysc_pgmd[i].pva != (void*)-1){
+      num++;
+    }
+  }
+  return num;
+}
+
+uint
+get_swap_page_num(struct proc* p){
+  int i, num = 0;
+  for (i=0; i < MAX_FILE_PAGES; i++){
+    if (p->swap_pgmd[i].pva != (void*)-1){
+      num++;
+    }
+  }
+  return num;
+}
+
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
@@ -487,19 +536,11 @@ kill(int pid)
 void
 procdump(void)
 {
-  static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
-  };
   int i;
   struct proc *p;
   char *state;
   uint pc[10];
-  
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -507,12 +548,54 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
+
+#ifndef SELECTION_NONE
+    print_proc_data(p, state);
+#else
     cprintf("%d %s %s", p->pid, state, p->name);
-    if(p->state == SLEEPING){
+#endif
+
+   if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);
     }
     cprintf("\n");
   }
+
+#ifndef SELECTION_NONE
+    uint currently_free = get_freepages_num();
+    if (currently_free == 0)
+      currently_free = 1;
+
+    uint precentage = ((float)currently_free / (float)free_pages_after_kernel) * 100;
+    cprintf("%d%% free pages in the system\n", precentage);
+#endif
 }
+
+#ifndef SELECTION_NONE
+void 
+print_proc_data(struct proc* p, char* state)
+{
+  // number of pysc/swap pages the proccess currently has
+  uint swap_num, pysc_num; 
+  uint all_alloc_pages, pgfault_num, pgout_num;
+
+  if (p->pid <= 2) // init or shell
+    {
+      swap_num = 0;
+      pysc_num = 0;
+      pgfault_num = 0;
+      pgout_num = 0;
+    }
+    else 
+    {
+      swap_num = get_swap_page_num(p);
+      pysc_num = get_pysc_page_num(p);
+      pgfault_num = p->pgfault_num;
+      pgout_num = p->pgout_num;
+    }
+    all_alloc_pages = swap_num + pysc_num;
+    cprintf("%d %s %d %d %d %d %s", p->pid, state, all_alloc_pages, swap_num, pgfault_num, pgout_num, p->name);
+}
+#endif

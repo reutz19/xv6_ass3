@@ -81,7 +81,8 @@ struct proc {
   struct paggingmd swap_pgmd[MAX_FILE_PAGES]; //swap file pages meta-data
   struct paggingmd pysc_pgmd[MAX_PSYC_PAGES]; //pages in physical memory
   int    oldest_pgidx;          // pointer to the "oldest" page in physical memory - start of queque
-  
+  uint   pgout_num;             // number of times in which pages were paged out
+  uint   pgfault_num;           // umber of times the process had page faults 
 };
 
 // Process memory is laid out contiguously, low addresses first:

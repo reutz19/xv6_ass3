@@ -357,7 +357,8 @@ paged_out(int swap_pgidx)
   uint pgoff = ((uint)swap_pgidx) * PGSIZE;
   writeToSwapFile(proc, ((char*)proc->pysc_pgmd[pysc_pgidx].pva), pgoff, PGSIZE);
   proc->swap_pgmd[swap_pgidx].pva = outpg_va;
-
+  proc->pgout_num++;
+  
   char * v = p2v(PTE_ADDR(*pte));
   kfree(v);   							// free pysical memory
   //cprintf("in paged_out:swap_pgidx = %d     after KFREE\n", swap_pgidx);
@@ -784,7 +785,8 @@ handle_pgfault(void* fadd)
   
   //update pysc memory struct  
   proc->pysc_pgmd[pysc_pgidx].pva = fadd;
-  
+  proc->pgfault_num++;
+
   return 0;
 }
 
@@ -820,6 +822,8 @@ create_proc_pgmd(struct proc* p)
   init_pysc_pgmd(p);
   init_swap_pgmd(p);
   p->oldest_pgidx = 0;
+  p->pgfault_num = 0;
+  p->pgout_num = 0;
 }
 
 // clear all proc pages data
@@ -834,6 +838,8 @@ free_proc_pgmd(struct proc* p, uint remove)
   init_pysc_pgmd(p);
   init_swap_pgmd(p);
   p->oldest_pgidx = 0;
+  p->pgfault_num = 0;
+  p->pgout_num = 0;
 }
 
 // 1. copy srcp swap file with the name of dstp   
@@ -846,6 +852,8 @@ copy_proc_pgmd(struct proc* dstp, struct proc* srcp)
   copy_pysc_pgmd(dstp, srcp);
   copy_swap_pgmd(dstp, srcp);
   dstp->oldest_pgidx = srcp->oldest_pgidx;
+  dstp->pgout_num = srcp->pgout_num;
+  dstp->pgfault_num = srcp->pgfault_num;
 }
 
 #endif

@@ -13,6 +13,8 @@
 
 char* m1[COUNT];
 
+
+//sanity 2 - testing fork and copy files
 volatile int
 main(int argc, char *argv[])
 {
@@ -40,6 +42,8 @@ main(int argc, char *argv[])
 }
 
 /*
+
+// sanity 1 - check allocation and deallocation - working with pages metadata
 volatile int
 main(int argc, char *argv[])
 {
